@@ -1,0 +1,43 @@
+#!/usr/bin/python
+import sys
+import json
+import requests
+import time
+
+
+class Window:
+    def __init__(self, parent=None):
+        self.url = "http://www.iciba.com/index.php?a=getWordMean&c=search&word="
+        self.session = requests.session()
+
+    def translate(self):
+
+        url = self.url+sys.argv[1]
+
+        json_file = self.session.get(url)
+        # print(json_file.text)
+        self.fetch_information(json_file.text)
+
+
+    def fetch_information(self,json_file):
+        json_file = json.loads(json_file)
+        result = {}
+        try:
+
+            means = json_file["baesInfo"]["symbols"][0]["parts"]
+            # if "ph_en_mp3" not  in  json_file["baesInfo"]["symbols"][0]:
+            #     sound =json_file["baesInfo"]["symbols"][0]["symbol_mp3"]
+            # else:
+            #     sound = json_file["baesInfo"]["symbols"][0]["ph_en_mp3"]
+            s=""
+            for mean in means:
+                # 后面半段写的额比较乱，这是先把list砖换成了str，然后去点前后的[],然后把引号也去掉
+                s+=mean["part"] + "    "+str(mean["means"])[1:-1].replace("'","")
+            print(s)
+        except:
+            print("出错了。。。。。。。")
+            return "oh no!"
+if __name__ == "__main__":
+
+    win = Window()
+    win.translate()
