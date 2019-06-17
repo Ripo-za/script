@@ -1,0 +1,168 @@
+#!/home/ripo/project/python/.env/bin/python
+import sys
+import json
+import requests
+import time
+from xlutils.copy import copy
+import xlwt
+import xlrd
+from PyQt5.QtWidgets import  QApplication, QMainWindow,QPushButton,QLineEdit
+from PyQt5 import QtCore, QtGui, QtWidgets
+
+class Ui_MainWindow(object):
+    def setupUi(self, MainWindow):
+        MainWindow.setObjectName("MainWindow")
+        MainWindow.resize(435, 420)
+        
+        self.centralWidget = QtWidgets.QWidget(MainWindow)
+        self.centralWidget.setObjectName("centralWidget")
+        self.verticalLayout = QtWidgets.QVBoxLayout(self.centralWidget)
+        self.verticalLayout.setObjectName("verticalLayout")
+        self.horizontalLayout_2 = QtWidgets.QHBoxLayout()
+        self.horizontalLayout_2.setObjectName("horizontalLayout_2")
+        self.Input = QtWidgets.QLineEdit(self.centralWidget)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.Input.sizePolicy().hasHeightForWidth())
+        self.Input.setSizePolicy(sizePolicy)
+        font = QtGui.QFont()
+        font.setFamily("Arial")
+        font.setPointSize(14)
+        self.Input.setFont(font)
+        self.Input.setObjectName("Input")
+        self.horizontalLayout_2.addWidget(self.Input)
+        self.horizontalLayout = QtWidgets.QHBoxLayout()
+        self.horizontalLayout.setSpacing(0)
+        self.horizontalLayout.setObjectName("horizontalLayout")
+
+        self.Translate = QtWidgets.QPushButton(self.centralWidget)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.Translate.sizePolicy().hasHeightForWidth())
+        self.Translate.setSizePolicy(sizePolicy)
+        self.Translate.setObjectName("Translate")
+        self.Translate.setShortcut("Return")
+        self.horizontalLayout.addWidget(self.Translate)
+
+        self.Read = QtWidgets.QPushButton(self.centralWidget)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.Read.sizePolicy().hasHeightForWidth())
+        self.Read.setSizePolicy(sizePolicy)
+        self.Read.setObjectName("Read")
+        self.horizontalLayout.addWidget(self.Read)
+
+        self.save = QtWidgets.QPushButton(self.centralWidget)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.save.sizePolicy().hasHeightForWidth())
+        self.save.setSizePolicy(sizePolicy)
+        self.save.setObjectName("save")
+        self.horizontalLayout.addWidget(self.save)
+
+        self.horizontalLayout_2.addLayout(self.horizontalLayout)
+        self.verticalLayout.addLayout(self.horizontalLayout_2)
+        self.Output = QtWidgets.QTextEdit(self.centralWidget)
+        self.Output.setObjectName("Output")
+        self.verticalLayout.addWidget(self.Output)
+        self.verticalLayout.setStretch(0, 1)
+        self.verticalLayout.setStretch(1, 7)
+        MainWindow.setCentralWidget(self.centralWidget)
+
+        self.retranslateUi(MainWindow)
+        QtCore.QMetaObject.connectSlotsByName(MainWindow)
+
+    def retranslateUi(self, MainWindow):
+        #加事件
+        _translate = QtCore.QCoreApplication.translate
+        
+        MainWindow.setWindowTitle(_translate("MainWindow", "MainWindow"))
+        self.Translate.setText(_translate("MainWindow", "翻译"))
+        # self.Translate.setShortcut(_translate("MainWindow", "Return"))
+        self.Translate.setShortcut("Return")
+        self.Read.setText(_translate("MainWindow", "关闭表"))
+        self.save.setText(_translate("MainWindow", "打开表并写入"))
+
+
+
+
+
+class Window(QMainWindow, Ui_MainWindow):
+    def __init__(self, parent=None):
+        super(Window, self).__init__(parent)
+        self.setupUi(self)
+        self.open_table = 1
+        self.url = "http://www.iciba.com/index.php?a=getWordMean&c=search&word="
+        self.session = requests.session()
+        #在这块给button加的点击函数,这样写太好了，原来的文件不包括任何行为，只是个界面。
+        #需要的行为在这里写!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        self.Translate.clicked.connect(self.start_translate) 
+        self.save.clicked.connect(self.save_result)
+        self.Read.clicked.connect(self.close_table)
+        # self.closeEvent.clicked.connect(self.close_window)
+
+        
+    def start_translate(self):
+        # word = None
+        if self.Input.text() ==  "":
+            self.Output.append("你都没输入单词，你让我查啥玩意!")
+            return
+        self.Output.setText("正在查询" + self.Input.text() + "的意思")
+        word = self.Input.text()
+        # 这里一定不能写成self.url = self.url +word，因为会加上上一个结果
+        url = self.url+word
+        # print(self.Input.text())
+        json_file = self.session.get(url)
+        # print(json_file.text)
+        self.Output.append("收到返回结果")
+        self.fetch_information(json_file.text)
+
+    
+    def fetch_information(self,json_file):
+        json_file = json.loads(json_file)
+        result = {}
+        try:
+
+            means = json_file["baesInfo"]["symbols"][0]["parts"]
+            if "ph_en_mp3" not  in  json_file["baesInfo"]["symbols"][0]:
+                sound =json_file["baesInfo"]["symbols"][0]["symbol_mp3"]
+            else:
+                sound = json_file["baesInfo"]["symbols"][0]["ph_en_mp3"]
+            self.Output.append("正在提取信息。。。。。。。"+"\n"+"\n")
+            self.result=''
+            for mean in means:
+                # 后面半段写的额比较乱，这是先把list砖换成了str，然后去点前后的[],然后把引号也去掉
+                self.result +=  "[" +mean["part"] + "]    "+str(mean["means"])[1:-1].replace("'","")
+                self.Output.append(mean["part"] + "    "+str(mean["means"])[1:-1].replace("'",""))
+            # return  result,self.session.get(sound)
+        except:
+            self.Output.append("出错了。。。。。。。")
+            return "oh no!"
+
+    def save_result(self):
+        if self.open_table:
+            database = xlrd.open_workbook("translate_result.xls")# 读取excel文件
+            self.row = database.sheets()[0].nrows # 获取已有的行数
+            self.excel = copy(database) # 将xlrd的对象转化为xlwt的对象
+            self.table = self.excel.get_sheet(0)# 获取要操作的sheet
+            self.open_table = 0
+            self.save.setText( "写入数据")
+
+        self.table.write(self.row,0,self.Input.text())
+        self.table.write(self.row,1,self.result)
+        self.row += 1
+        # self.excel.save("translate_result.xls")
+    def close_table(self,event):
+        self.excel.save("translate_result.xls")
+        self.open_table = 1
+        pass
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    win = Window()
+    win.show()
+    sys.exit(app.exec())
+    time.sleep(100)
