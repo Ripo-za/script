@@ -6,6 +6,7 @@ import time
 from xlutils.copy import copy
 import xlwt
 import xlrd
+import pandas as pd
 from PyQt5.QtWidgets import  QApplication, QMainWindow,QPushButton,QLineEdit
 from PyQt5 import QtCore, QtGui, QtWidgets
 
@@ -46,15 +47,6 @@ class Ui_MainWindow(object):
         self.Translate.setShortcut("Return")
         self.horizontalLayout.addWidget(self.Translate)
 
-        self.Read = QtWidgets.QPushButton(self.centralWidget)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.Read.sizePolicy().hasHeightForWidth())
-        self.Read.setSizePolicy(sizePolicy)
-        self.Read.setObjectName("Read")
-        self.horizontalLayout.addWidget(self.Read)
-
         self.save = QtWidgets.QPushButton(self.centralWidget)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
@@ -63,6 +55,15 @@ class Ui_MainWindow(object):
         self.save.setSizePolicy(sizePolicy)
         self.save.setObjectName("save")
         self.horizontalLayout.addWidget(self.save)
+
+        self.Close = QtWidgets.QPushButton(self.centralWidget)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.Close.sizePolicy().hasHeightForWidth())
+        self.Close.setSizePolicy(sizePolicy)
+        self.Close.setObjectName("Close")
+        self.horizontalLayout.addWidget(self.Close)
 
         self.horizontalLayout_2.addLayout(self.horizontalLayout)
         self.verticalLayout.addLayout(self.horizontalLayout_2)
@@ -84,11 +85,8 @@ class Ui_MainWindow(object):
         self.Translate.setText(_translate("MainWindow", "翻译"))
         # self.Translate.setShortcut(_translate("MainWindow", "Return"))
         self.Translate.setShortcut("Return")
-        self.Read.setText(_translate("MainWindow", "关闭表"))
-        self.save.setText(_translate("MainWindow", "打开表并写入"))
-
-
-
+        self.Close.setText(_translate("MainWindow", "去重"))
+        self.save.setText(_translate("MainWindow", "写入"))
 
 
 class Window(QMainWindow, Ui_MainWindow):
@@ -102,25 +100,37 @@ class Window(QMainWindow, Ui_MainWindow):
         #需要的行为在这里写!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         self.Translate.clicked.connect(self.start_translate) 
         self.save.clicked.connect(self.save_result)
-        self.Read.clicked.connect(self.close_table)
+        self.Close.clicked.connect(self.close_table)
         # self.closeEvent.clicked.connect(self.close_window)
 
-        
     def start_translate(self):
         # word = None
         if self.Input.text() ==  "":
             self.Output.append("你都没输入单词，你让我查啥玩意!")
             return
-        self.Output.setText("正在查询" + self.Input.text() + "的意思")
-        word = self.Input.text()
+        self.Output.setText("---------------------------------")
+        self.Output.append("正在查询" + self.Input.text() + "的意思")
+        # 把查询的词保存下来
+        self.word = self.Input.text()
+        # 清空输入框，这样下次查询就方便了
+        self.Input.clear()
         # 这里一定不能写成self.url = self.url +word，因为会加上上一个结果
-        url = self.url+word
+        url = self.url+self.word
         # print(self.Input.text())
-        json_file = self.session.get(url)
-        # print(json_file.text)
-        self.Output.append("收到返回结果")
-        self.fetch_information(json_file.text)
+        self.Output.append("---------------------------------")
+        try:
+            json_file = self.session.get(url,timeout=30)
+            self.Output.append("收到返回结果")
+            if json_file.text == '':
+                self.Output.append("返回json数据格式错误")
+                return "json error"
+            self.fetch_information(json_file.text)
 
+        except:
+            self.Output.setText("请求出现错误，请检查网络链接")
+            return "cannot connect internet"
+        # print(json_file.text)
+        
     
     def fetch_information(self,json_file):
         json_file = json.loads(json_file)
@@ -134,6 +144,8 @@ class Window(QMainWindow, Ui_MainWindow):
                 sound = json_file["baesInfo"]["symbols"][0]["ph_en_mp3"]
             self.Output.append("正在提取信息。。。。。。。"+"\n"+"\n")
             self.result=''
+            self.yinbiao ="  [ "+str(json_file["baesInfo"]["symbols"][0]["ph_en"])+" ]"
+            self.Output.append(self.yinbiao)
             for mean in means:
                 # 后面半段写的额比较乱，这是先把list砖换成了str，然后去点前后的[],然后把引号也去掉
                 self.result +=  "[" +mean["part"] + "]    "+str(mean["means"])[1:-1].replace("'","")
@@ -144,22 +156,17 @@ class Window(QMainWindow, Ui_MainWindow):
             return "oh no!"
 
     def save_result(self):
-        if self.open_table:
-            database = xlrd.open_workbook("translate_result.xls")# 读取excel文件
-            self.row = database.sheets()[0].nrows # 获取已有的行数
-            self.excel = copy(database) # 将xlrd的对象转化为xlwt的对象
-            self.table = self.excel.get_sheet(0)# 获取要操作的sheet
-            self.open_table = 0
-            self.save.setText( "写入数据")
+        if self.word.strip() !="":
+            data = pd.DataFrame([[self.word.strip().lower()+self.yinbiao,self.result]])
+            data.to_csv("/home/ripo/.wegit/translate_result.csv",index=False,mode='a',header=None)
+            # 写入word后，把word置空，避免没有查询就保存或者保存两次的情况
+            self.word=""
 
-        self.table.write(self.row,0,self.Input.text())
-        self.table.write(self.row,1,self.result)
-        self.row += 1
-        # self.excel.save("translate_result.xls")
     def close_table(self,event):
-        self.excel.save("translate_result.xls")
-        self.open_table = 1
-        pass
+        data = pd.read_csv("/home/ripo/.wegit/translate_result.csv")
+        data = data.drop_duplicates("word")
+        data.to_csv("/home/ripo/.wegit/translate_result.csv",index=False)
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     win = Window()
